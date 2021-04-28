@@ -1,0 +1,7 @@
+*.ipynb
+__pycache__
+
+metadata.json
+output.json
+
+.vscode
