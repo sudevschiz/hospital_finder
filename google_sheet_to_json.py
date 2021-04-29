@@ -38,7 +38,7 @@ def fetch():
     with open("output.json", "w") as fileOut:
         json.dump(newData, fileOut, indent=4)
 
-    return 0
+    return newData
 
 
 if __name__ == "__main__":

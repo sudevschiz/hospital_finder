@@ -5,7 +5,6 @@ from google_sheet_to_json import fetch
 import json
 import os
 from time import sleep
-from util import build_menu, zones, pincodes
 import pandas as pd
 from datetime import datetime, timedelta
 
@@ -32,6 +31,7 @@ def read_status_logs():
             last_updated_time = datetime.strptime(
                 meta["last_updated_time"], "%Y-%m-%d %H:%M:%S"
             )
+
     except Exception as e:
         logging.error(e)
         logging.info("Will create a new metadata file")
@@ -40,13 +40,22 @@ def read_status_logs():
     if last_updated_time < datetime.now() - timedelta(minutes=DATA_UPDATE_MIN):
         fetch_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         try:
-            fetch()
+            newData = fetch()
             logging.info("Data refreshed")
         except Exception as e:
             logging.error(e)
             return None
         with open("metadata.json", "w") as f:
-            json.dump({"last_updated_time": fetch_start_time}, f, indent=4)
+            nD = pd.DataFrame(newData)
+            json.dump(
+                {
+                    "last_updated_time": fetch_start_time,
+                    "zones": sorted([z for z in list(nD["zone"].unique()) if z != ""]),
+                    "pincodes": sorted([z for z in list(nD["pincode"].unique()) if z != ""]),
+                },
+                f,
+                indent=4,
+            )
 
     try:
         with open("output.json", "r") as f:
@@ -112,12 +121,13 @@ def prepare_message(logs):
         for l in r["logs"]:
             status_msg = (
                 status_msg
+                + "```\n"
                 + f"Last updated: {l['timestamp']} \n"
-                + f"General Beds: {l['general']} \n"
-                + f"HDU: {l['hdu']} \n"
-                + f"ICU: {l['icu']} \n"
-                + f"Ventilator ICU: {l['icuwithventilator']} \n"
-                + f"Remarks:  {l['remarks']} \n"
+                + f"GEN: {l['general']} | "
+                + f"HDU: {l['hdu']} | "
+                + f"ICU: {l['icu']} | "
+                + f"V-ICU: {l['icuwithventilator']}"
+                + "```"
             )
 
         message = message + "\n*" + r["hospital"] + "*\n" + status_msg + "\n\n"
@@ -168,6 +178,18 @@ def process_zone(zone, n_latest=1):
     return message
 
 
+def build_menu(buttons, n_cols, header_buttons=None, footer_buttons=None):
+    """
+    Build a menu
+    """
+    menu = [buttons[i : i + n_cols] for i in range(0, len(buttons), n_cols)]
+    if header_buttons:
+        menu.insert(0, [header_buttons])
+    if footer_buttons:
+        menu.append([footer_buttons])
+    return menu
+
+
 def entry(bot, update):
     """
     Handle all actions by the bot
@@ -214,6 +236,12 @@ def entry(bot, update):
             return
 
     if update.message:
+
+        # Load the zones and pincodes
+        with open("metadata.json", "r") as f:
+            meta = json.load(f)
+        zones = meta["zones"]
+        pincodes = meta["pincodes"]
         # ZONE
         try:
             if update.message.text.startswith("/zone"):
@@ -221,7 +249,7 @@ def entry(bot, update):
                     chat_id=update.message.chat.id, action=telegram.ChatAction.TYPING
                 )
                 button_list = []
-                for zone in zones["zones"]:
+                for zone in zones:
                     button_list.append(InlineKeyboardButton(zone, callback_data=zone))
                 reply_markup = InlineKeyboardMarkup(build_menu(button_list, n_cols=2))
                 bot.send_message(
@@ -245,7 +273,7 @@ def entry(bot, update):
                     chat_id=update.message.chat.id, action=telegram.ChatAction.TYPING
                 )
                 button_list = []
-                for pincode in pincodes["pincodes"]:
+                for pincode in pincodes:
                     button_list.append(
                         InlineKeyboardButton(pincode, callback_data=pincode)
                     )
@@ -306,6 +334,8 @@ def main():
 
     bot = telegram.Bot(BOT_TOKEN)
 
+    # Do a data refresh every time bot restarts
+    read_status_logs()
     update_id = 0
     while True:
         try:
