@@ -51,7 +51,9 @@ def read_status_logs():
                 {
                     "last_updated_time": fetch_start_time,
                     "zones": sorted([z for z in list(nD["zone"].unique()) if z != ""]),
-                    "pincodes": sorted([z for z in list(nD["pincode"].unique()) if z != ""]),
+                    "pincodes": sorted(
+                        [z for z in list(nD["pincode"].unique()) if z != ""]
+                    ),
                 },
                 f,
                 indent=4,
@@ -111,14 +113,23 @@ def get_latest(s, n_latest=2):
     return result
 
 
-def prepare_message(logs):
+def prepare_message(logs, header=""):
     """
     Prepare the formatted message
     """
-    message = ""
+    message = "*" + header + "*\n" + "="*len(header)
     for r in logs:
         status_msg = ""
         for l in r["logs"]:
+            if (
+                int(l["general"])
+                + int(l["hdu"])
+                + int(l["hdu"])
+                + int(l["icu"])
+                + int(l["icuwithventilator"])
+            ) <= 0:
+                continue
+
             status_msg = (
                 status_msg
                 + "```\n"
@@ -129,8 +140,10 @@ def prepare_message(logs):
                 + f"V-ICU: {l['icuwithventilator']}"
                 + "```"
             )
-
-        message = message + "\n*" + r["hospital"] + "*\n" + status_msg + "\n\n"
+    if status_msg == "":
+        message = message + f"\nNo beds available in {len(logs)} tracked hospital(s) here"
+    else:
+        message = message + "\n*" + r["hospital"] + "*\n" + status_msg + "\n"
 
     return message
 
@@ -153,7 +166,7 @@ def process_pincode(pincode, n_latest=1):
     if len(logs) == 0:
         message = "No hospitals found"
     else:
-        message = prepare_message(logs)
+        message = prepare_message(logs, header=pincode)
     return message
 
 
@@ -174,7 +187,7 @@ def process_zone(zone, n_latest=1):
     if len(logs) == 0:
         message = "No hospitals found"
     else:
-        message = prepare_message(logs)
+        message = prepare_message(logs, header=zone)
     return message
 
 
