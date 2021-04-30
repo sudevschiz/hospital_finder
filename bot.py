@@ -45,8 +45,11 @@ def read_status_logs():
     except Exception as e:
         logging.error(e)
         logging.info("Will create a new metadata file")
+        meta = {}
+        TIME_START =  "1900-01-01 00:00:00+05:30"
+        meta["scheduled_sent_time"] = meta["last_updated_time"] = TIME_START
         last_updated_time = datetime.strptime(
-            "1900-01-01 00:00:00+05:30", "%Y-%m-%d %H:%M:%S%z"
+           TIME_START, "%Y-%m-%d %H:%M:%S%z"
         )
 
     if (datetime.now(IST) - last_updated_time) > timedelta(minutes=DATA_UPDATE_MIN):
@@ -59,17 +62,20 @@ def read_status_logs():
             return None
         with open("metadata.json", "w") as f:
             nD = pd.DataFrame(newData)
-            json.dump(
+            meta.update(
                 {
                     "last_updated_time": fetch_start_time,
                     "zones": sorted([z for z in list(nD["zone"].unique()) if z != ""]),
                     "pincodes": sorted(
                         [z for z in list(nD["pincode"].unique()) if z != ""]
                     ),
-                },
-                f,
-                indent=4,
+                }
             )
+            json.dump(
+                meta,
+                f,
+                indent=4
+                )
 
     try:
         with open("output.json", "r") as f:
