@@ -448,7 +448,7 @@ def main():
             scheduled_sent_time = datetime.strptime(
                 meta["scheduled_sent_time"], "%Y-%m-%d %H:%M:%S"
             )
-            logging.info(f"Last scheduled sent : {meta['scheduled_sent_time']}")
+            logging.debug(f"Last scheduled sent : {meta['scheduled_sent_time']}")
         except KeyError:
             scheduled_sent_time = datetime(1900, 1, 1)
 
