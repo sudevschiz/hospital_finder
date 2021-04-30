@@ -17,6 +17,8 @@ logging.basicConfig(
 )
 
 DATA_UPDATE_MIN = 1
+SCHEDULE_MSG_MIN = 15
+SCHEDULE_CHANNEL = os.environ["SCHEDULE_CHANNEL"]
 
 
 def read_status_logs():
@@ -99,13 +101,23 @@ def hosps_in_zone(status, zone):
     return sel_status, hosp_count
 
 
-def get_latest(s, n_latest=2):
+def get_latest(s, n_latest=1):
     """
     For each hospital, get the `n_latest` status logs
     """
     s.sort_values("timestamp", ascending=False, inplace=True)
     result = (
-        s[["timestamp", "general", "hdu", "icu", "icuwithventilator", "remarks"]]
+        s[
+            [
+                "timestamp",
+                "general",
+                "hdu",
+                "icu",
+                "icuwithventilator",
+                "phonenumber",
+                "remarks",
+            ]
+        ]
         .head(n_latest)
         .to_dict("records")
     )
@@ -117,7 +129,8 @@ def prepare_message(logs, header=""):
     """
     Prepare the formatted message
     """
-    message = "*" + header + "*\n" + "="*len(header)
+    avl_ctr = 0
+    message = "*" + header + "*\n" + "=" * len(header)
     for r in logs:
         status_msg = ""
         for l in r["logs"]:
@@ -129,7 +142,6 @@ def prepare_message(logs, header=""):
                 + int(l["icuwithventilator"])
             ) <= 0:
                 continue
-
             status_msg = (
                 status_msg
                 + "```\n"
@@ -140,12 +152,52 @@ def prepare_message(logs, header=""):
                 + f"V-ICU: {l['icuwithventilator']}"
                 + "```"
             )
-    if status_msg == "":
-        message = message + f"\nNo beds available in {len(logs)} tracked hospital(s) here"
-    else:
-        message = message + "\n*" + r["hospital"] + "*\n" + status_msg + "\n"
+        if status_msg != "":
+            avl_ctr = avl_ctr + 1
+            message = (
+                message
+                + "\n*"
+                + r["hospital"]
+                + "*\n"
+                + "📞 `"
+                + r["logs"][0]["phonenumber"]
+                + "`\n"
+                + status_msg
+                + "\n"
+            )
+
+    if avl_ctr == 0:
+        message = message + f"\nNo beds available in {len(logs)} tracked hospital(s)"
+    return message
+
+
+def prepare_scheduled_message():
+    """
+    Prepare the message to be sent to the channel
+    """
+
+    status = read_status_logs()
+    grp = status.groupby("hospital")
+    logs = []
+    for hosp, s in grp:
+        logs.append({"hospital": hosp, "logs": get_latest(s, n_latest=1)})
+    time_now = datetime.now().strftime("%Y-%m-%d  %H:%M")
+    header = f"*Status @ : {time_now}* \n"
+    message = prepare_message(logs, header)
 
     return message
+
+
+def send_to_channel(bot):
+    """
+    Send the scheduled message to channel
+    """
+    message = prepare_scheduled_message()
+    bot.send_message(
+        chat_id=SCHEDULE_CHANNEL,
+        text=message,
+        parse_mode=telegram.ParseMode.MARKDOWN,
+    )
 
 
 def process_pincode(pincode, n_latest=1):
@@ -351,6 +403,24 @@ def main():
     read_status_logs()
     update_id = 0
     while True:
+        # Send scheduled message if it has been more than 15 minutes
+        with open("metadata.json", "r") as f:
+            meta = json.load(f)
+        try:
+            scheduled_sent_time = datetime.strptime(
+                meta["scheduled_sent_time"], "%Y-%m-%d %H:%M:%S"
+            )
+        except KeyError:
+            scheduled_sent_time = datetime(1900, 1, 1)
+
+        time_now = datetime.now()
+        if scheduled_sent_time < (time_now - timedelta(minutes=SCHEDULE_MSG_MIN)):
+            send_to_channel(bot)
+            logging.info("Sent scheduled message to channel")
+            meta["scheduled_sent_time"] = time_now.strftime("%Y-%m-%d %H:%M:%S")
+            with open("metadata.json", "w") as f:
+                json.dump(meta, f, indent=4)
+
         try:
             for update in bot.get_updates(offset=update_id, timeout=10):
                 update_id = update.update_id + 1
