@@ -286,7 +286,7 @@ def entry(bot, update):
         try:
             bot.send_message(
                 chat_id=BIN_CHANNEL,
-                text=json.dumps(str(update["message"]), sort_keys=True, indent=4),
+                text=json.dumps(str(update), sort_keys=True, indent=4),
             )
         except Exception as e:
             logging.error(f"BIN Fail : {e}")
