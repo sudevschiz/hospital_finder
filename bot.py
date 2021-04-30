@@ -20,7 +20,7 @@ logging.basicConfig(
 )
 
 DATA_UPDATE_MIN = 1
-SCHEDULE_MSG_MIN = 15
+SCHEDULE_MSG_MIN = 60
 SCHEDULE_CHANNEL = os.environ["SCHEDULE_CHANNEL"]
 try:
     BIN_CHANNEL = os.environ["BIN_CHANNEL"]
@@ -45,9 +45,11 @@ def read_status_logs():
     except Exception as e:
         logging.error(e)
         logging.info("Will create a new metadata file")
-        last_updated_time = datetime(1900, 1, 1).replace(tzinfo=IST)
+        last_updated_time = datetime.strptime(
+            "1900-01-01 00:00:00+05:30", "%Y-%m-%d %H:%M:%S%z"
+        )
 
-    if last_updated_time < datetime.now(IST) - timedelta(minutes=DATA_UPDATE_MIN):
+    if (datetime.now(IST) - last_updated_time) > timedelta(minutes=DATA_UPDATE_MIN):
         fetch_start_time = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S%z")
         try:
             newData = fetch()
@@ -453,11 +455,12 @@ def main():
             )
             logging.debug(f"Last scheduled sent : {meta['scheduled_sent_time']}")
         except KeyError:
-            scheduled_sent_time = datetime(1900, 1, 1).replace(tzinfo=IST)
-            print(scheduled_sent_time)
+            scheduled_sent_time = datetime.strptime(
+                "1900-01-01 00:00:00+05:30", "%Y-%m-%d %H:%M:%S%z"
+            )
 
         time_now = datetime.now(IST)
-        if scheduled_sent_time < (time_now - timedelta(minutes=SCHEDULE_MSG_MIN)):
+        if (time_now - scheduled_sent_time) > timedelta(minutes=SCHEDULE_MSG_MIN):
             send_to_channel(bot)
             logging.info("Sent scheduled message to channel")
             meta["scheduled_sent_time"] = time_now.strftime("%Y-%m-%d %H:%M:%S%z")
