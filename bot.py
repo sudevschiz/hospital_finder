@@ -444,7 +444,6 @@ def main():
         # Send scheduled message if it has been more than 15 minutes
         with open("metadata.json", "r") as f:
             meta = json.load(f)
-        print(meta)
         try:
             scheduled_sent_time = datetime.strptime(
                 meta["scheduled_sent_time"], "%Y-%m-%d %H:%M:%S"
