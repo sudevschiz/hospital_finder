@@ -265,15 +265,16 @@ def send_message(bot, chat_id, text, **kwargs):
     """
     Custom send_message with BIN
     """
+    msg = bot.send_message(chat_id=chat_id, text=text, **kwargs)
     # BIN IF BIN
     if BIN_CHANNEL:
         try:
-            bot.send_message(chat_id=BIN_CHANNEL, text=text, **kwargs)
+            bot.send_message(
+                chat_id=BIN_CHANNEL, text=json.dumps(str(msg), sort_keys=True, indent=4)
+            )
         except Exception as e:
             logging.error(f"BIN Fail : {e}")
             pass
-
-    bot.send_message(chat_id=chat_id, text=text, **kwargs)
 
 
 def entry(bot, update):
@@ -283,7 +284,10 @@ def entry(bot, update):
     # BIN IF BIN
     if BIN_CHANNEL:
         try:
-            bot.send_message(chat_id=BIN_CHANNEL, text=update.message)
+            bot.send_message(
+                chat_id=BIN_CHANNEL,
+                text=json.dumps(str(update["message"]), sort_keys=True, indent=4),
+            )
         except Exception as e:
             logging.error(f"BIN Fail : {e}")
             pass
@@ -440,10 +444,12 @@ def main():
         # Send scheduled message if it has been more than 15 minutes
         with open("metadata.json", "r") as f:
             meta = json.load(f)
+        print(meta)
         try:
             scheduled_sent_time = datetime.strptime(
                 meta["scheduled_sent_time"], "%Y-%m-%d %H:%M:%S"
             )
+            logging.info(f"Last scheduled sent : {meta['scheduled_sent_time']}")
         except KeyError:
             scheduled_sent_time = datetime(1900, 1, 1)
 
