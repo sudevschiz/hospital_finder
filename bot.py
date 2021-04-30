@@ -19,6 +19,11 @@ logging.basicConfig(
 DATA_UPDATE_MIN = 1
 SCHEDULE_MSG_MIN = 15
 SCHEDULE_CHANNEL = os.environ["SCHEDULE_CHANNEL"]
+try:
+    BIN_CHANNEL = os.environ["BIN_CHANNEL"]
+except:
+    BIN_CHANNEL = None
+    logging.warning("No Bin. Won't Bin")
 
 
 def read_status_logs():
@@ -193,7 +198,8 @@ def send_to_channel(bot):
     Send the scheduled message to channel
     """
     message = prepare_scheduled_message()
-    bot.send_message(
+    send_message(
+        bot=bot,
         chat_id=SCHEDULE_CHANNEL,
         text=message,
         parse_mode=telegram.ParseMode.MARKDOWN,
@@ -255,10 +261,32 @@ def build_menu(buttons, n_cols, header_buttons=None, footer_buttons=None):
     return menu
 
 
+def send_message(bot, chat_id, text, **kwargs):
+    """
+    Custom send_message with BIN
+    """
+    # BIN IF BIN
+    if BIN_CHANNEL:
+        try:
+            bot.send_message(chat_id=BIN_CHANNEL, text=text, **kwargs)
+        except Exception as e:
+            logging.error(f"BIN Fail : {e}")
+            pass
+
+    bot.send_message(chat_id=chat_id, text=text, **kwargs)
+
+
 def entry(bot, update):
     """
     Handle all actions by the bot
     """
+    # BIN IF BIN
+    if BIN_CHANNEL:
+        try:
+            bot.send_message(chat_id=BIN_CHANNEL, text=update.message)
+        except Exception as e:
+            logging.error(f"BIN Fail : {e}")
+            pass
 
     # CALLBACKS
     if update.callback_query:
@@ -267,14 +295,16 @@ def entry(bot, update):
             try:
                 message = process_zone(zone)
                 logging.debug(message)
-                bot.send_message(
+                send_message(
+                    bot=bot,
                     chat_id=update.callback_query.message.chat.id,
                     text=message,
                     parse_mode=telegram.ParseMode.MARKDOWN,
                 )
             except Exception as e:
                 logging.error(e)
-                bot.send_message(
+                send_message(
+                    bot=bot,
                     chat_id=update.callback_query.message.chat.id,
                     text="Hospital fetch failed",
                 )
@@ -285,14 +315,16 @@ def entry(bot, update):
             pincode = update.callback_query.data
             try:
                 message = process_pincode(pincode)
-                bot.send_message(
+                send_message(
+                    bot=bot,
                     chat_id=update.callback_query.message.chat.id,
                     text=message,
                     parse_mode=telegram.ParseMode.MARKDOWN,
                 )
             except Exception as e:
                 logging.error(e)
-                bot.send_message(
+                send_message(
+                    bot=bot,
                     chat_id=update.callback_query.message.chat.id,
                     text="Hospital fetch failed",
                 )
@@ -317,7 +349,8 @@ def entry(bot, update):
                 for zone in zones:
                     button_list.append(InlineKeyboardButton(zone, callback_data=zone))
                 reply_markup = InlineKeyboardMarkup(build_menu(button_list, n_cols=2))
-                bot.send_message(
+                send_message(
+                    bot=bot,
                     chat_id=update.message.chat.id,
                     text="Which zone's hospitals do you want to check?",
                     reply_to_message_id=update.message.message_id,
@@ -326,8 +359,8 @@ def entry(bot, update):
                 return
         except Exception as e:
             logging.error(e)
-            bot.send_message(
-                chat_id=update.message.chat.id, text="Something wrong.. :/"
+            send_message(
+                bot=bot, chat_id=update.message.chat.id, text="Something wrong.. :/"
             )
             return
 
@@ -343,7 +376,8 @@ def entry(bot, update):
                         InlineKeyboardButton(pincode, callback_data=pincode)
                     )
                 reply_markup = InlineKeyboardMarkup(build_menu(button_list, n_cols=4))
-                bot.send_message(
+                send_message(
+                    bot=bot,
                     chat_id=update.message.chat.id,
                     text="Which pincode's hospitals do you want to check?",
                     reply_to_message_id=update.message.message_id,
@@ -352,8 +386,8 @@ def entry(bot, update):
                 return
         except Exception as e:
             logging.error(e)
-            bot.send_message(
-                chat_id=update.message.chat.id, text="Something wrong.. :/"
+            send_message(
+                bot=bot, chat_id=update.message.chat.id, text="Something wrong.. :/"
             )
             return
 
