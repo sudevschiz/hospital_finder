@@ -7,6 +7,9 @@ import os
 from time import sleep
 import pandas as pd
 from datetime import datetime, timedelta
+from pytz import timezone
+
+IST = timezone("Asia/Kolkata")
 
 import logging
 
@@ -36,16 +39,16 @@ def read_status_logs():
         with open("metadata.json", "r") as f:
             meta = json.load(f)
             last_updated_time = datetime.strptime(
-                meta["last_updated_time"], "%Y-%m-%d %H:%M:%S"
+                meta["last_updated_time"], "%Y-%m-%d %H:%M:%S%z"
             )
 
     except Exception as e:
         logging.error(e)
         logging.info("Will create a new metadata file")
-        last_updated_time = datetime(1900, 1, 1)
+        last_updated_time = datetime(1900, 1, 1).replace(tzinfo=IST)
 
-    if last_updated_time < datetime.now() - timedelta(minutes=DATA_UPDATE_MIN):
-        fetch_start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if last_updated_time < datetime.now(IST) - timedelta(minutes=DATA_UPDATE_MIN):
+        fetch_start_time = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S%z")
         try:
             newData = fetch()
             logging.info("Data refreshed")
@@ -186,7 +189,7 @@ def prepare_scheduled_message():
     logs = []
     for hosp, s in grp:
         logs.append({"hospital": hosp, "logs": get_latest(s, n_latest=1)})
-    time_now = datetime.now().strftime("%Y-%m-%d  %H:%M")
+    time_now = datetime.now(IST).strftime("%Y-%m-%d  %H:%M")
     header = f"*Status @ : {time_now}* \n"
     message = prepare_message(logs, header)
 
@@ -446,17 +449,18 @@ def main():
             meta = json.load(f)
         try:
             scheduled_sent_time = datetime.strptime(
-                meta["scheduled_sent_time"], "%Y-%m-%d %H:%M:%S"
+                meta["scheduled_sent_time"], "%Y-%m-%d %H:%M:%S%z"
             )
             logging.debug(f"Last scheduled sent : {meta['scheduled_sent_time']}")
         except KeyError:
-            scheduled_sent_time = datetime(1900, 1, 1)
+            scheduled_sent_time = datetime(1900, 1, 1).replace(tzinfo=IST)
+            print(scheduled_sent_time)
 
-        time_now = datetime.now()
+        time_now = datetime.now(IST)
         if scheduled_sent_time < (time_now - timedelta(minutes=SCHEDULE_MSG_MIN)):
             send_to_channel(bot)
             logging.info("Sent scheduled message to channel")
-            meta["scheduled_sent_time"] = time_now.strftime("%Y-%m-%d %H:%M:%S")
+            meta["scheduled_sent_time"] = time_now.strftime("%Y-%m-%d %H:%M:%S%z")
             with open("metadata.json", "w") as f:
                 json.dump(meta, f, indent=4)
 
