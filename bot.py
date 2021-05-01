@@ -6,6 +6,7 @@ import json
 import os
 from time import sleep
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 from pytz import timezone
 
@@ -58,8 +59,8 @@ def clean_data(data):
 
     data = data[sel_cols]
     data.rename(columns=col_maps, inplace=True)
-    data[int_cols] = data[int_cols].apply(lambda x: x.replace("-", None))
-
+    data[int_cols] = data[int_cols].apply(lambda x: x.replace("-", "0"))
+    data.to_csv("test.csv")
     # Interest condition
     data = data[data["interested"].str.contains("Yes")]
     # Type condition
@@ -318,7 +319,8 @@ def send_message(bot, chat_id, text, **kwargs):
     if BIN_CHANNEL:
         try:
             bot.send_message(
-                chat_id=BIN_CHANNEL, text=json.dumps(str(msg)[0:BIN_MAX_LENGTH], sort_keys=True, indent=4)
+                chat_id=BIN_CHANNEL,
+                text=json.dumps(str(msg)[0:BIN_MAX_LENGTH], sort_keys=True, indent=4),
             )
         except Exception as e:
             logging.error(f"BIN Fail : {e}")
@@ -334,7 +336,9 @@ def entry(bot, update):
         try:
             bot.send_message(
                 chat_id=BIN_CHANNEL,
-                text=json.dumps(str(update)[0:BIN_MAX_LENGTH], sort_keys=True, indent=4),
+                text=json.dumps(
+                    str(update)[0:BIN_MAX_LENGTH], sort_keys=True, indent=4
+                ),
             )
         except Exception as e:
             logging.error(f"BIN Fail : {e}")
