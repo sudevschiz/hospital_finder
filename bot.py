@@ -60,7 +60,6 @@ def clean_data(data):
     data = data[sel_cols]
     data.rename(columns=col_maps, inplace=True)
     data[int_cols] = data[int_cols].apply(lambda x: x.replace("-", "0"))
-    data.to_csv("test.csv")
     # Interest condition
     data = data[data["interested"].str.contains("Yes")]
     # Type condition
