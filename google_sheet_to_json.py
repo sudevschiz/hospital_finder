@@ -7,12 +7,13 @@ import requests
 def fetch():
     # Sheet key
     key = "1IWjEQGUAQpQfT_wWVDiQqUoK457bE_MnTbpgnBPzTiE"
-
+    # sheet_id = "od6"
+    sheet_id = "ov0t4ow"
     # Google api request urls
     url = (
         "https://spreadsheets.google.com/feeds/list/"
         + key
-        + "/od6/public/values?alt=json"
+        + f"/{sheet_id}/public/values?alt=json"
     )
 
     # Lists to store new keys and data

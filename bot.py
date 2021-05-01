@@ -27,6 +27,45 @@ try:
 except:
     BIN_CHANNEL = None
     logging.warning("No Bin. Won't Bin")
+BIN_MAX_LENGTH = 3000
+
+
+def clean_data(data):
+    """
+    Only choose the necessary columns
+    """
+    data = pd.DataFrame(data)
+    sel_cols = [
+        "hospitalname",
+        "zone",
+        "pincode",
+        "contactno",
+        "general",
+        "hdu",
+        "icu",
+        "icu-v",
+        "remarks",
+        "timestamp",
+        "type",
+        "interested",
+    ]
+    col_maps = {
+        "hospitalname": "hospital",
+        "contactno": "phonenumber",
+        "icu-v": "icuwithventilator",
+    }
+    int_cols = ["general", "hdu", "icu", "icuwithventilator", "timestamp"]
+
+    data = data[sel_cols]
+    data.rename(columns=col_maps, inplace=True)
+    data[int_cols] = data[int_cols].apply(lambda x: x.replace("-", None))
+
+    # Interest condition
+    data = data[data["interested"].str.contains("Yes")]
+    # Type condition
+    data = data[(data["type"] == "Covid") | (data["type"] == "Both")]
+
+    return data
 
 
 def read_status_logs():
@@ -46,11 +85,9 @@ def read_status_logs():
         logging.error(e)
         logging.info("Will create a new metadata file")
         meta = {}
-        TIME_START =  "1900-01-01 00:00:00+05:30"
+        TIME_START = "1900-01-01 00:00:00+05:30"
         meta["scheduled_sent_time"] = meta["last_updated_time"] = TIME_START
-        last_updated_time = datetime.strptime(
-           TIME_START, "%Y-%m-%d %H:%M:%S%z"
-        )
+        last_updated_time = datetime.strptime(TIME_START, "%Y-%m-%d %H:%M:%S%z")
 
     if (datetime.now(IST) - last_updated_time) > timedelta(minutes=DATA_UPDATE_MIN):
         fetch_start_time = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S%z")
@@ -71,16 +108,14 @@ def read_status_logs():
                     ),
                 }
             )
-            json.dump(
-                meta,
-                f,
-                indent=4
-                )
+            json.dump(meta, f, indent=4)
 
     try:
         with open("output.json", "r") as f:
             status = json.load(f)
             status = pd.DataFrame(status)
+            # Clean
+            status = clean_data(status)
         return status
     except FileNotFoundError:
         logging.info("Output file does not exist and couldn't be fetched!")
@@ -166,7 +201,7 @@ def prepare_message(logs, header=""):
                 + f"HDU: {l['hdu']} | "
                 + f"ICU: {l['icu']} | "
                 + f"V-ICU: {l['icuwithventilator']}"
-                + "```"
+                + "\n```"
             )
         if status_msg != "":
             avl_ctr = avl_ctr + 1
@@ -175,9 +210,9 @@ def prepare_message(logs, header=""):
                 + "\n*"
                 + r["hospital"]
                 + "*\n"
-                + "📞 `"
-                + r["logs"][0]["phonenumber"]
-                + "`\n"
+                + "📞 "
+                + f"+91{r['logs'][0]['phonenumber']}"
+                + "\n"
                 + status_msg
                 + "\n"
             )
@@ -200,6 +235,8 @@ def prepare_scheduled_message():
     time_now = datetime.now(IST).strftime("%Y-%m-%d  %H:%M")
     header = f"*Status @ : {time_now}* \n"
     message = prepare_message(logs, header)
+    _footer = "\nBot Link : @citagbedinfoline\_bot\n"
+    message = message + _footer
 
     return message
 
@@ -281,7 +318,7 @@ def send_message(bot, chat_id, text, **kwargs):
     if BIN_CHANNEL:
         try:
             bot.send_message(
-                chat_id=BIN_CHANNEL, text=json.dumps(str(msg), sort_keys=True, indent=4)
+                chat_id=BIN_CHANNEL, text=json.dumps(str(msg)[0:BIN_MAX_LENGTH], sort_keys=True, indent=4)
             )
         except Exception as e:
             logging.error(f"BIN Fail : {e}")
@@ -297,7 +334,7 @@ def entry(bot, update):
         try:
             bot.send_message(
                 chat_id=BIN_CHANNEL,
-                text=json.dumps(str(update), sort_keys=True, indent=4),
+                text=json.dumps(str(update)[0:BIN_MAX_LENGTH], sort_keys=True, indent=4),
             )
         except Exception as e:
             logging.error(f"BIN Fail : {e}")
