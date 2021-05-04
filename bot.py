@@ -4,6 +4,7 @@ from telegram.error import NetworkError, Unauthorized
 from google_sheet_to_json import fetch
 import json
 import os
+import ast
 from time import sleep
 import pandas as pd
 import numpy as np
@@ -264,6 +265,7 @@ def send_to_channel(bot):
     Send the scheduled message to channel
     """
     message = prepare_scheduled_message()
+    print(message)
     send_message(
         bot=bot,
         chat_id=SCHEDULE_CHANNEL,
@@ -362,12 +364,12 @@ def send_message(bot, chat_id, text, **kwargs):
     Custom send_message with BIN
     """
     msg = bot.send_message(chat_id=chat_id, text=text, **kwargs)
+    msg = str(msg)
     # BIN IF BIN
     if BIN_CHANNEL:
         try:
             bot.send_message(
-                chat_id=BIN_CHANNEL,
-                text=json.dumps(str(msg)[0:BIN_MAX_LENGTH], sort_keys=True, indent=4),
+                chat_id=BIN_CHANNEL, text=json.dumps(ast.literal_eval(msg), indent=4)
             )
         except Exception as e:
             logging.error(f"BIN Fail : {e}")
@@ -381,11 +383,9 @@ def entry(bot, update):
     # BIN IF BIN
     if BIN_CHANNEL:
         try:
+            msg = str(update)
             bot.send_message(
-                chat_id=BIN_CHANNEL,
-                text=json.dumps(
-                    str(update)[0:BIN_MAX_LENGTH], sort_keys=True, indent=4
-                ),
+                chat_id=BIN_CHANNEL, text=json.dumps(ast.literal_eval(msg), indent=4)
             )
         except Exception as e:
             logging.error(f"BIN Fail : {e}")
