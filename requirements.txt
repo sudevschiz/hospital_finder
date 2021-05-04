@@ -1,3 +1,6 @@
 python-telegram-bot
 requests
 pandas
+gspread
+google-api-python-client
+oauth2client 

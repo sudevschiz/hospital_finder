@@ -2,6 +2,7 @@ import telegram
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import NetworkError, Unauthorized
 from google_sheet_to_json import fetch
+from analytics import Analytics
 import json
 import os
 import ast
@@ -265,7 +266,6 @@ def send_to_channel(bot):
     Send the scheduled message to channel
     """
     message = prepare_scheduled_message()
-    print(message)
     send_message(
         bot=bot,
         chat_id=SCHEDULE_CHANNEL,
@@ -592,8 +592,16 @@ def main():
     # Do a data refresh every time bot restarts
     read_status_logs()
     update_id = 0
+
+    # Try creating and analytics object
+    try:
+        lytics = Analytics()
+    except Exception as e:
+        logging.error(f"Analytics engine couldn't start : {e}")
+        lytics = None
+
     while True:
-        # Send scheduled message if it has been more than 15 minutes
+        # Send scheduled message if it has been more than specified time interval
         with open("metadata.json", "r") as f:
             meta = json.load(f)
         try:
@@ -619,6 +627,48 @@ def main():
                 update_id = update.update_id + 1
                 logging.info(f"Update ID:{update_id}")
                 entry(bot, update)
+                # Try logging to Usage Log
+                if lytics:
+                    try:
+                        timestamp = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S%z")
+                        update_id = update_id
+                        try:
+                            tg_id = update["message"]["chat"]["id"]
+                        except TypeError:
+                            tg_id = ""
+                        try:
+                            tg_username = update["message"]["chat"]["username"]
+                        except TypeError:
+                            tg_username = ""
+                        try:
+                            tg_firstname = update["message"]["chat"]["first_name"]
+                        except TypeError:
+                            tg_firstname = ""
+                        try:
+                            tg_lastname = update["message"]["chat"]["last_name"]
+                        except TypeError:
+                            tg_lastname = ""
+                        try:
+                            text = update["message"]["text"]
+                        except TypeError:
+                            text = ""
+
+                        row = [
+                            [
+                                timestamp,
+                                update_id,
+                                tg_id,
+                                tg_username,
+                                tg_firstname,
+                                tg_lastname,
+                                text,
+                            ]
+                        ]
+                        logging.info(row)
+                        lytics.append_rows(row)
+                    except Exception as e:
+                        logging.error(f"Analytics post failed : {e}")
+
         except NetworkError:
             sleep(1)
         except Unauthorized:
