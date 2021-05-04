@@ -564,7 +564,11 @@ def entry(bot, update):
             \n*Pincode*
             - Send the keyword /pincode
             - Choose a pincode
-            - Latest available status of hospitals in that pincode is give
+            - Latest available status of hospitals in that pincode is shown
+            \n*BedType*
+            - Send the keyword /bedtype
+            - Choose a bedtype
+            - Hospitals with the beds of bedtype chosen available is displayed
             \n\n_Send `/test` for checking if the bot is online_"""
 
             update.message.reply_text(
