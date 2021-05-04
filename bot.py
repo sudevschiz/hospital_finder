@@ -152,6 +152,21 @@ def hosps_in_zone(status, zone):
     return sel_status, hosp_count
 
 
+def hosps_in_bedtype(status, bedtype):
+    """
+    Return the data of all hospitals that has available
+    beds in the provided bedtype
+    Also returns the count of hospitals
+    """
+    sel_status = status[(pd.to_numeric(status[bedtype]) > 0)]
+
+    try:
+        hosp_count = sel_status.hospital.nunique()
+    except KeyError:
+        hosp_count = 0
+    return sel_status, hosp_count
+
+
 def get_latest(s, n_latest=1):
     """
     For each hospital, get the `n_latest` status logs
@@ -188,7 +203,6 @@ def prepare_message(logs, header=""):
             if (
                 int(l["general"])
                 + int(l["hdu"])
-                + int(l["hdu"])
                 + int(l["icu"])
                 + int(l["icuwithventilator"])
             ) <= 0:
@@ -205,13 +219,17 @@ def prepare_message(logs, header=""):
             )
         if status_msg != "":
             avl_ctr = avl_ctr + 1
+            if r["logs"][0]["phonenumber"] != "":
+                phn_num = f"+91{r['logs'][0]['phonenumber']}"
+            else:
+                phn_num = ""
             message = (
                 message
                 + "\n*"
                 + r["hospital"]
                 + "*\n"
                 + "📞 "
-                + f"+91{r['logs'][0]['phonenumber']}"
+                + phn_num
                 + "\n"
                 + status_msg
                 + "\n"
@@ -294,6 +312,36 @@ def process_zone(zone, n_latest=1):
         message = "No hospitals found"
     else:
         message = prepare_message(logs, header=zone)
+    return message
+
+
+def process_bedtype(bedtype):
+    """
+    Return the data of all hospitals
+    that have an available bed in the provided bedtype
+    """
+    bedtype_map = {
+        "General": "general",
+        "HDU": "hdu",
+        "ICU": "icu",
+        "Ventilator-ICU": "icuwithventilator",
+    }
+
+    bedtype_mapped = bedtype_map[bedtype]
+
+    status = read_status_logs()
+
+    sel_status, hosp_count = hosps_in_bedtype(status, bedtype_mapped)
+
+    grp = sel_status.groupby("hospital")
+    logs = []
+    for hosp, s in grp:
+        logs.append({"hospital": hosp, "logs": get_latest(s, n_latest=1)})
+
+    if len(logs) == 0:
+        message = "No hospitals found"
+    else:
+        message = prepare_message(logs, header=bedtype)
     return message
 
 
@@ -387,6 +435,27 @@ def entry(bot, update):
 
             return
 
+        if update.callback_query.message.reply_to_message.text.startswith("/bedtype"):
+            bedtype = update.callback_query.data
+            try:
+                message = process_bedtype(bedtype)
+                send_message(
+                    bot=bot,
+                    chat_id=update.callback_query.message.chat.id,
+                    text=message,
+                    parse_mode=telegram.ParseMode.MARKDOWN,
+                )
+            except Exception as e:
+                logging.error(e)
+                send_message(
+                    bot=bot,
+                    chat_id=update.callback_query.message.chat.id,
+                    text="Hospital fetch failed",
+                )
+                logging.error(e)
+
+            return
+
     if update.message:
 
         # Load the zones and pincodes
@@ -435,6 +504,34 @@ def entry(bot, update):
                     bot=bot,
                     chat_id=update.message.chat.id,
                     text="Which pincode's hospitals do you want to check?",
+                    reply_to_message_id=update.message.message_id,
+                    reply_markup=reply_markup,
+                )
+                return
+        except Exception as e:
+            logging.error(e)
+            send_message(
+                bot=bot, chat_id=update.message.chat.id, text="Something wrong.. :/"
+            )
+            return
+
+        # BEDTYPE
+        try:
+            if update.message.text.startswith("/bedtype"):
+                bot.send_chat_action(
+                    chat_id=update.message.chat.id, action=telegram.ChatAction.TYPING
+                )
+                button_list = []
+                bedtypes = ["General", "HDU", "ICU", "Ventilator-ICU"]
+                for bedtype in bedtypes:
+                    button_list.append(
+                        InlineKeyboardButton(bedtype, callback_data=bedtype)
+                    )
+                reply_markup = InlineKeyboardMarkup(build_menu(button_list, n_cols=1))
+                send_message(
+                    bot=bot,
+                    chat_id=update.message.chat.id,
+                    text="Which bed-type do you want to check?",
                     reply_to_message_id=update.message.message_id,
                     reply_markup=reply_markup,
                 )
